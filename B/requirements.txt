@@ -1,0 +1,9 @@
+twisted
+simplejson
+tensorboardX
+ujson
+coloredlogs
+tqdm
+dahuffman
+py-lz4framed
+h5py
