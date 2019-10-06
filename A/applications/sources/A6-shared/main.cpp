@@ -19,7 +19,12 @@ int main(int argc, char* argv[]) {
 
 	unsigned int datasize = VECTOR_SIZE*sizeof(double);
 
-	cudaSetDevice(0); // set first device as default
+        int device=0;
+        
+        if (getenv("device") != NULL)
+            device = atoi(getenv("device"));
+
+	cudaSetDevice(device); // set first device as default
 
 	StoreDeviceInfo(stdout);
 

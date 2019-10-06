@@ -27,8 +27,12 @@ int main(int argc, char* argv[]) {
 
 	unsigned int datasize = VECTOR_SIZE*sizeof(int4); // reserve space for int4 types
 
-	cudaSetDevice(0); // set first device as default
+        // Get environment variables
+        int device = 0;
+        if (getenv("device") != NULL)
+            device = atoi(getenv("device"));
 
+        cudaSetDevice(device);
 	StoreDeviceInfo(stdout);
 
 	size_t freeCUDAMem, totalCUDAMem;

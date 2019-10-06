@@ -151,15 +151,34 @@ extern "C" void shmembenchGPU(double *c, long size){
 	CUDA_SAFE_CALL( cudaGetLastError() );
 	CUDA_SAFE_CALL( cudaDeviceSynchronize() );
 
-	initializeEvents(&start, &stop);
-	benchmark_shmem<float><<< dimGrid_f1, dimBlock, shared_mem_per_block >>>((float*)cd);
-	float krn_time_shmem_32b = finalizeEvents(start, stop);
+        int secs = -1;
+        int cIterations = 10;
 
+        // Get environment variables
+        if (getenv("secs") != NULL)
+            secs = atoi(getenv("secs"));
+
+        double total_time = 0.0;
+        float krn_time_shmem_32b = 0.0;
+        for(int i = -5; i < cIterations;i++){
+	    initializeEvents(&start, &stop);
+	    benchmark_shmem<float><<< dimGrid_f1, dimBlock, shared_mem_per_block >>>((float*)cd);
+	    total_time += (double)finalizeEvents(start, stop);
+            if (i == -1){
+                if (secs > 0){
+                    double estimated_time = total_time / 5.0 / 1000.0;
+                    cIterations = int((double)secs / estimated_time) + 1;
+                    printf("Estimated second is %f, adjust iteration to %d.\n", estimated_time, cIterations);
+                }
+                total_time = 0;
+            }
+        }
 	// Copy results back to host memory
 	CUDA_SAFE_CALL( cudaMemcpy(c, cd, size*sizeof(double), cudaMemcpyDeviceToHost) );
 
 	CUDA_SAFE_CALL( cudaFree(cd) );
 
+        krn_time_shmem_32b = (float)(total_time * 1.0 / cIterations);
 	printf("Kernel execution time\n");
 	
 	printf("Total operations executed\n");
@@ -175,4 +194,8 @@ extern "C" void shmembenchGPU(double *c, long size){
 	cudaDeviceProp deviceProp = GetDeviceProperties();
 	printf("\tshared memory operations per clock (32bit) :%8.2f (per SM%6.2f)\n",((double)operations_32bit)/(deviceProp.clockRate*krn_time_shmem_32b), ((double)operations_32bit)/(deviceProp.clockRate*krn_time_shmem_32b)/deviceProp.multiProcessorCount);
 	CUDA_SAFE_CALL( cudaDeviceReset() );
+
+	printf("\tusing  32bit operations   :%8.2f GB/sec (%6.2f billion accesses/sec)\n", ( (double)operations_bytes)/krn_time_shmem_32b*1000./(double)(1000.*1000.*1000.),  ((double)operations_32bit)/ krn_time_shmem_32b*1000./(double)(1000*1000*1000));
+        printf("Maximum bandwidth is %.3f GB/s.\n", ( (double)operations_bytes)/krn_time_shmem_32b*1000./(double)(1024.*1024.*1024.));
+        printf("Maximum throughput is %.3f GOP/s.\n", ((double)operations_32bit)/ krn_time_shmem_32b*1000./(double)(1024*1024*1024));
 }

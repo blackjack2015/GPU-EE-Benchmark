@@ -6,7 +6,7 @@
 
 #include <stdio.h>
 #include <lcutil.h>
-
+#include "sys/time.h"
 #define TOTAL_ITERATIONS  (16384000)
 #define UNROLL_ITERATIONS (64)
 
@@ -217,9 +217,34 @@ double cachebenchGPU(double *c, long size, bool excel){
 
 	runbench_warmup(cd, size);
 
-	double peak_bw = 0.0;
+        int secs = -1;
+        int cIterations = 10;
+        struct timeval start, end;
 
-	peak_bw = max( peak_bw, runbench<datatype, readonly,  1,    0>(TOTAL_BLOCKS, cd, size, excel) );
+        // Get environment variables
+        if (getenv("secs") != NULL)
+            secs = atoi(getenv("secs"));
+
+        double total_time = 0;
+        double peak_bw = 0;
+        for(int i = -3; i < cIterations; i++){
+            gettimeofday(&start, NULL);
+	    peak_bw += max( peak_bw, runbench<datatype, readonly,  1,    0>(TOTAL_BLOCKS, cd, size, excel) );
+            gettimeofday(&end, NULL);
+            total_time += end.tv_sec - start.tv_sec + (end.tv_usec - start.tv_usec)/1000000.0;
+
+            if (i == -1){
+                if (secs > 0){
+                    double estimated_time = total_time / 3.0;
+                    cIterations = int((double)secs / estimated_time) + 1;
+                    printf("Estimated second is %f, adjust iteration to %d.\n", estimated_time, cIterations);
+                }
+                peak_bw = 0;
+                total_time = 0;
+            }
+        }
+
+        peak_bw = peak_bw * 1.0 / cIterations;
 	// Copy results back to host memory
 	CUDA_SAFE_CALL( cudaMemcpy(c, cd, size*sizeof(datatype), cudaMemcpyDeviceToHost) );
 
@@ -245,5 +270,7 @@ extern "C" void cachebenchGPU(double *c, long size, bool excel){
 	printf("\tRead only accesses:\n");
 	printf("\t\tint1: %10.2f GB/sec\n", peak_bw_ro_int1);
 
+        printf("Maximum bandwidth is %.3f GB/s.\n", peak_bw_ro_int1);
+        printf("Maximum throughput is %.3f GOP/s.\n", peak_bw_ro_int1 / 4.0);
 	CUDA_SAFE_CALL( cudaDeviceReset() );
 }

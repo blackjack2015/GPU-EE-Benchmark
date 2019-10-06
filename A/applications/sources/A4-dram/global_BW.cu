@@ -40,8 +40,8 @@
 #include "cuda_runtime.h"
 #include "sys/time.h"
 
-//SM number: 8(Fermi 560 Ti); 12(Kepler 780 ); 16 (Maxwell 980); 28 (Pascal Titan X)
-#define BLOCK_BASE (28)
+//SM number: 8(Fermi 560 Ti); 12(Kepler 780 ); 16 (Maxwell 980); 28 (Pascal Titan X); 80 (Tesla V100)
+#define BLOCK_BASE (80)
 #define MULTIPLIER (10)
 
 template<const int n> 
@@ -109,35 +109,49 @@ double BandwidthCopy( int *deviceOut, int *deviceIn,
         status = cudaGetLastError() ; 
 		if (memcmp(hostOut, hostIn, (N)*sizeof(int))) {
             printf( "Incorrect copy performed!\n" );
-            goto Error;
+            return -1.0;
         }
     }
 
+    int secs = -1;
     cIterations = 10;
     struct timeval start, end;
-    gettimeofday(&start,NULL);
+
+    // Get environment variables
+    if (getenv("secs") != NULL)
+        secs = atoi(getenv("secs"));
+
 	//time_t start, end;
 	//start = clock();
+    double total_time = 0;
+    for ( int i = -10; i < cIterations; i++ ) {
+        gettimeofday(&start,NULL);
+	GlobalCopy<n> << <cBlocks, cThreads >> >(deviceOut, deviceIn, N);
+        cudaThreadSynchronize();
+        gettimeofday(&end,NULL);
+	status = cudaGetLastError();
 
-    for ( int i = 0; i < cIterations; i++ ) {
-		GlobalCopy<n> << <cBlocks, cThreads >> >(deviceOut, deviceIn, N);
+        total_time += end.tv_sec - start.tv_sec + (end.tv_usec - start.tv_usec)/1000000.0;
+
+        if (i == -1){
+            if (secs > 0){
+                double estimated_time = total_time / 10.0;
+                cIterations = int((double)secs / estimated_time) + 1;
+            }
+            total_time = 0;
+        }
     }
 
-    cudaThreadSynchronize();
     // make configurations that cannot launch error-out with 0 bandwidth
-	status = cudaGetLastError();
-    gettimeofday(&end,NULL);
     //end = clock();
 
     //elapsedTime =  (end - start)/1000.0;
-    elapsedTime =  end.tv_sec - start.tv_sec + (end.tv_usec - start.tv_usec)/1000000.0;
+    elapsedTime =  total_time;
 
     // bytes per second
 	ret = ((double)2 * N*cIterations*sizeof(int)) / elapsedTime;
     // gigabytes per second
     ret /= 1024.0*1048576.0;
-
-Error:
     return ret;
 }
 
@@ -145,9 +159,9 @@ template<const int n>
 double ReportRow( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks)
 {
     int *deviceIn = 0;
-	int *deviceOut = 0;
-	int *hostIn = 0;
-	int *hostOut = 0;
+    int *deviceOut = 0;
+    int *hostIn = 0;
+    int *hostOut = 0;
 
     cudaError_t status;
 
@@ -193,11 +207,16 @@ double ReportRow( size_t N, size_t threadStart, size_t threadStop, size_t cBlock
 
 int main()
 {
-    int device = 1;
+
+    // Get environment variables
+    int device = 0;
+    if (getenv("device") != NULL)
+        device = atoi(getenv("device"));
+
     int size = 64;
 	int N = size * 1048576;
 	int block_num;
-	int threadStart = 32;
+	int threadStart = 512;
 	int threadStop = 1024;
 
     printf( "Using coalesced reads and writes\n" );
@@ -207,6 +226,8 @@ int main()
 
 	printf("\nDevice %d: \"%s\"\n", device, deviceProp.name);
 
+        double maxBW = 0.0;
+        double retBW = 0.0;
 	// for ( block_num =int(BLOCK_BASE); block_num <= int(BLOCK_BASE * MULTIPLIER); block_num += int(BLOCK_BASE)){
 	for ( block_num =int(BLOCK_BASE); block_num <= int(BLOCK_BASE); block_num += int(BLOCK_BASE)){
 		printf("\n=================Block number: %d=================\n", block_num);
@@ -220,13 +241,19 @@ int main()
 		}
 
 		printf("maxBW\tmaxThreads\n");
-		ReportRow<1>(N, threadStart, threadStop, block_num);
-		ReportRow<2>(N, threadStart, threadStop, block_num);
-		ReportRow<3>(N, threadStart, threadStop, block_num);
-		ReportRow<4>(N, threadStart, threadStop, block_num);
-		ReportRow<8>(N, threadStart, threadStop, block_num);
+		retBW = ReportRow<4>(N, threadStart, threadStop, block_num);
+                if (retBW > maxBW)
+                    maxBW = retBW;
+
+		retBW = ReportRow<8>(N, threadStart, threadStop, block_num);
+                if (retBW > maxBW)
+                    maxBW = retBW;
 
 	}
+
+    double maxTHR = (N * 2 * 1.0) / (2 * N * sizeof(int) * 1.0 / maxBW);
+    printf("Maximum bandwidth is %.3f GB/s.\n", maxBW);
+    printf("Maximum throughput is %.3f GOP/s.\n", maxTHR);
 
     return 0;
 }
