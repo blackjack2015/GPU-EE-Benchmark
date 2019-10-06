@@ -3,10 +3,13 @@ dnn="${dnn:-resnet20}"
 bs="${bs:-32}"
 epoch="${epoch:-1}"
 iter="${iter:-800}"
+secs="${secs:--1}"
 cuda="${cuda:-1}"
 source exp_configs/$dnn.conf
 nstepsupdate=1
-python2 dl_trainer.py --dnn $dnn --dataset $dataset --max-epochs $max_epochs --batch-size $batch_size --data-dir $data_dir --lr $lr --nsteps-update $nstepsupdate --num-iter $iter --cuda $cuda #--power-profile 
+python -W ignore  \
+    dl_trainer.py \
+    --dnn $dnn --dataset $dataset --max-epochs $max_epochs --batch-size $batch_size --data-dir $data_dir --lr $lr --nsteps-update $nstepsupdate --num-iter $iter --secs $secs --cuda $cuda #--power-profile 
 # dnn=lstman4
 # source exp_configs/$dnn.conf
 # nworkers=4

@@ -1,13 +1,12 @@
 For DeepSpeech
 
-
-Pytorch 0.4.1
-Cuda 9.0 cuDNN 7.4
-Ubuntu 14.04
+Pytorch 1.2.0
+Cuda 10.0 cuDNN 7.5
+Ubuntu 16.04
 GCC 4.8.4
 
 Install warp-ctc
-export CUDA_HOME="/usr/local/cuda-9.0”
+export CUDA_HOME="/usr/local/cuda-10.0”
 git clone https://github.com/SeanNaren/warp-ctc.git
 cd warp-ctc
 mkdir build; cd build
@@ -24,7 +23,7 @@ python setup.py install
 
 pip install -r requirements.txt
 
-install data
+# install data
 cd data; python an4.py
 cd data; python librispeech.py
 (data path: P100 /home/yxwang/proj/DGC_speech2text/data/ )

@@ -7,3 +7,5 @@ tqdm
 dahuffman
 py-lz4framed
 h5py
+librosa
+scikit-learn==0.19.1
