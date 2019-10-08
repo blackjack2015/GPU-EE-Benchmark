@@ -9,17 +9,23 @@
 __global__ void simpleKernel(float *A, float *C1, int size, int compute_iters, int tile_dim)
 {
     int xIndex = blockIdx.x * tile_dim + threadIdx.x;
-    float ra;
+    float ra, rb, rc, rd;
 
     if (xIndex < size) {
         //ra=A[xIndex];
-        ra=A[size - xIndex - 1];
+        ra=A[xIndex];
+        rb=A[size - xIndex - 1];
+        rc=ra;
+        rd=rb;
 
         // rb=A[xIndex];
         for (int i=0;i<compute_iters;i++) {
-            ra = sinf(ra);
+            ra = sinf(ra+rb);
+            rb = cosf(rb+rc);
+            rc = sinf(rc+rd);
+            rd = cosf(rd+ra);
         }
-        C1[xIndex]=ra;
+        C1[xIndex]=ra + rb + rc + rd;
     }
 }
 
@@ -94,7 +100,7 @@ int main(int argc, char **argv) {
 
     printf("teste: %f\n", h_oC1[0]);
 
-    float peak_bw = compute_iters * mem_size * 1.0 / kernelTime / (1024.*1024.*1024.); 
+    float peak_bw = 4 * compute_iters * mem_size * 1.0 / kernelTime / (1024.*1024.*1024.); 
     printf("Maximum bandwidth is %.3f GB/s.\n", peak_bw);
     printf("Maximum throughput is %.3f GOP/s.\n", peak_bw / item_size);
 

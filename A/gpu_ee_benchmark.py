@@ -79,17 +79,17 @@ for i, app in enumerate(benchmark_programs):
         # stop record power data
         os.system(kill_pw_cmd)
 
-        # execute program to collect time data
-        command = 'nvprof --profile-child-processes %s/%s %s -device=%d -secs=5 >> %s/%s 2>&1' % (APP_ROOT, app, arg, cuda_dev_id, LOG_ROOT, perflog)
-        print command
-        os.system(command)
-        time.sleep(rest_int)
+        ## execute program to collect time data
+        #command = 'nvprof --profile-child-processes %s/%s %s -device=%d -secs=5 >> %s/%s 2>&1' % (APP_ROOT, app, arg, cuda_dev_id, LOG_ROOT, perflog)
+        #print command
+        #os.system(command)
+        #time.sleep(rest_int)
 
-        # collect grid and block settings
-        command = 'nvprof --print-gpu-trace --profile-child-processes %s/%s %s -device=%d -iters=10 > %s/%s 2>&1' % (APP_ROOT, app, arg, cuda_dev_id, LOG_ROOT, perflog)
-        print command
-        os.system(command)
-        time.sleep(rest_int)
+        ## collect grid and block settings
+        #command = 'nvprof --print-gpu-trace --profile-child-processes %s/%s %s -device=%d -iters=10 > %s/%s 2>&1' % (APP_ROOT, app, arg, cuda_dev_id, LOG_ROOT, perflog)
+        #print command
+        #os.system(command)
+        #time.sleep(rest_int)
 
 
 time.sleep(rest_int)
