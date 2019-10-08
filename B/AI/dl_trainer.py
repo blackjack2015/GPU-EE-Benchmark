@@ -634,6 +634,7 @@ class DLTrainer:
                 else:
                     labels = labels_cpu
                 
+            print(inputs.size())
             # wrap them in Variable
             #inputs, labels = Variable(inputs), Variable(labels)
             #logger.info('[%d] labels: %s', self.train_iter, labels_cpu)
@@ -817,9 +818,9 @@ if __name__ == '__main__':
     if args.power_profile:
         # start power profiling
         pw_logfile = logfile.replace(".log", "-power.log")
-        logger.info("Cool down GPU for 30 secs before executing the task...")
-        os.system("nohup ./scripts/nvml_samples 1>%s 2>&1 &" % pw_logfile)
-        time.sleep(5)
+        logger.info("Cool down GPU for 15 secs before executing the task...")
+        os.system("nohup ./scripts/nvml_samples -si=50 -device=%d 1>%s 2>&1 &" % (device_id, pw_logfile))
+        time.sleep(15)
 
     num_iter = None
     cuda_enable = True
@@ -831,7 +832,7 @@ if __name__ == '__main__':
 
     if args.power_profile:
         # kill power profiling
-        logger.info("Cool down GPU for 30 secs after executing the task...")
+        logger.info("Cool down GPU for 15 secs after executing the task...")
         os.system("killall nvml_samples")
-        time.sleep(5)
+        time.sleep(15)
         pass

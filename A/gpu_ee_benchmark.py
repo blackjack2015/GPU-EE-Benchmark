@@ -45,7 +45,7 @@ print benchmark_programs
 
 if 'linux' in sys.platform:
     pw_sampling_cmd = 'nohup ./nvml_samples -device=%d -si=%d -output=%s/%s 1>null 2>&1 &'
-    app_exec_cmd = './%s/%s %s -device=%d -secs=%d >> %s/%s'
+    app_exec_cmd = 'device=%d secs=%d ./%s/%s %s >> %s/%s'
     kill_pw_cmd = 'killall nvml_samples'
 elif 'win' in sys.platform:
     pw_sampling_cmd = 'start /B nvml_samples.exe -device=%d -si=%d -output=%s/%s > nul'
@@ -71,7 +71,7 @@ for i, app in enumerate(benchmark_programs):
 
         # execute program to collect power data
         os.system("echo \"arg:%s\" > %s/%s" % (arg, LOG_ROOT, perflog))
-        command = app_exec_cmd % (APP_ROOT, app, arg, cuda_dev_id, running_time, LOG_ROOT, perflog)
+        command = app_exec_cmd % (cuda_dev_id, running_time, APP_ROOT, app, arg, LOG_ROOT, perflog)
         print command
         os.system(command)
         time.sleep(rest_int)

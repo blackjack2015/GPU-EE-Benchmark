@@ -1,0 +1,8 @@
+appName,coreF,memF,argNo,kernel,power/W
+A1-FP32,1380,877,input00,simpleKernel,134.13718699186992
+A2-FP64,1380,877,input00,simpleKernel,124.32511612903225
+A3-SF,1380,877,input00,simpleKernel,110.59433576642338
+A4-dram,1380,877,input00,GlobalCopy,173.30164588528677
+A5-cache,1380,877,input00,benchmark_func,116.60045263157892
+A6-shared,1380,877,input00,benchmark_shmem,117.96403164556959
+A7-texture,1380,877,input00,benchmark_func,90.19837860082306
