@@ -29,12 +29,15 @@ from encoding import huffman
 #from tensorboardX import SummaryWriter
 from datasets import DatasetHDF5
 #writer = SummaryWriter()
+from models import *
+#from models import layers
 
 import ptb_reader
 import models.lstm as lstmpy
 from torch.autograd import Variable
 import json
 
+os.environ["CUDA_VISIBLE_DEVICES"]='1'
 
 torch.manual_seed(0)
 if "run_threads" in os.environ:
@@ -91,6 +94,8 @@ def create_net(num_classes, dnn='resnet20', **kwargs):
         net = torchvision.models.alexnet()
     elif dnn == 'inception_v3':
         net = torchvision.models.inception_v3(aux_logits=False)
+    elif dnn == 'ssd':
+        net = models.ssd.build_ssd('train', 300, num_classes)
     elif dnn == 'lstman4':
         net, ext = models.LSTMAN4(datapath=kwargs['datapath'])
     elif dnn == 'lstm':
@@ -101,15 +106,15 @@ def create_net(num_classes, dnn='resnet20', **kwargs):
     else:
         errstr = 'Unsupport neural network %s' % dnn
         logger.error(errstr)
-        raise errstr 
+        raise errstr
     return net, ext
 
 
 class DLTrainer:
 
     # todo =================
-    def __init__(self, rank, size, master='gpu10', dist=True, ngpus=1, batch_size=32, 
-        is_weak_scaling=True, data_dir='./data', dataset='cifar10', dnn='resnet20', 
+    def __init__(self, rank, size, master='gpu10', dist=True, ngpus=1, batch_size=32,
+        is_weak_scaling=True, data_dir='./datasets', dataset='cifar10', dnn='resnet20',
         lr=0.04, nworkers=1, prefix=None, sparsity=0.95, pretrain=None, num_steps=35):
 
         self.size = size
@@ -120,12 +125,14 @@ class DLTrainer:
         self.num_steps = num_steps
         self.ngpus = ngpus
         if self.ngpus > 0:
+            print("Using CUDA")
             self.batch_size = batch_size * self.ngpus if is_weak_scaling else batch_size
         else:
             self.batch_size = batch_size
         self.is_cuda = self.ngpus > 0
         self.is_pinned = self.ngpus > 0
         if self.is_cuda:
+            torch.set_default_tensor_type('torch.cuda.FloatTensor')
             torch.cuda.manual_seed_all(3000)
         self.num_batches_per_epoch = -1
         if self.dataset == 'cifar10' or self.dataset == 'mnist':
@@ -133,10 +140,12 @@ class DLTrainer:
         elif self.dataset == 'imagenet':
             self.num_classes = 1000
         elif self.dataset == 'an4':
-            self.num_classes = 29 
+            self.num_classes = 29
         # todo zhtang ==============
         elif self.dataset == 'ptb':
             self.num_classes = 10
+        elif self.dataset == 'voc2007':
+            self.num_classes = 21
         self.nworkers = nworkers # just for easy comparison
         # TODO zhtang =============
         self.data_dir = data_dir
@@ -151,6 +160,8 @@ class DLTrainer:
             # TODO: Refact these codes!
             if self.dnn == 'lstm':
                 self.net, self.ext = create_net(self.num_classes, self.dnn, vocab_size = self.vocab_size, batch_size=self.batch_size)
+            elif self.dnn == 'ssd':
+                self.net, self.ext = create_net(self.num_classes, self.dnn, batch_size=self.batch_size)
             elif self.dnn == 'lstman4':
                 self.net, self.ext = create_net(self.num_classes, self.dnn, datapath=self.data_dir)
                 if self.data_dir is not None:  # an4, create net first and then prepare data
@@ -194,10 +205,10 @@ class DLTrainer:
         else:
             self.lstman4_lr_epoch_tag = 0
             weight_decay = 0.
-        self.optimizer = optim.SGD(self.net.parameters(), 
+        self.optimizer = optim.SGD(self.net.parameters(),
                 lr=self.lr,
                 #nesterov=True,
-                momentum=self.m, 
+                momentum=self.m,
                 #weight_decay=5e-4)
                 weight_decay=weight_decay,
                 nesterov=nesterov)
@@ -214,7 +225,7 @@ class DLTrainer:
         self.distributions = {}
         self.gpu_caches = {}
         self.delays = []
-        self.num_of_updates_during_comm = 0 
+        self.num_of_updates_during_comm = 0
         self.train_acc_top1 = []
         logger.info('num_batches_per_epoch: %d'% self.num_batches_per_epoch)
 
@@ -287,7 +298,7 @@ class DLTrainer:
 
         train_sampler = None
         shuffle = False
-        if self.nworkers > 1: 
+        if self.nworkers > 1:
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 self.trainset, num_replicas=self.nworkers, rank=self.rank)
             train_sampler.set_epoch(0)
@@ -342,7 +353,7 @@ class DLTrainer:
 
         train_sampler = None
         shuffle = True
-        if self.nworkers > 1: 
+        if self.nworkers > 1:
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 self.trainset, num_replicas=self.nworkers, rank=self.rank)
             train_sampler.set_epoch(0)
@@ -372,7 +383,7 @@ class DLTrainer:
         self.testset = testset
         train_sampler = None
         shuffle = True
-        if self.nworkers > 1: 
+        if self.nworkers > 1:
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 self.trainset, num_replicas=self.nworkers, rank=self.rank)
             train_sampler.set_epoch(0)
@@ -413,7 +424,7 @@ class DLTrainer:
         self.trainset = train_set
         train_sampler = None
         shuffle = True
-        if self.nworkers > 1: 
+        if self.nworkers > 1:
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 self.trainset, num_replicas=self.nworkers, rank=self.rank)
             train_sampler.set_epoch(0)
@@ -461,6 +472,15 @@ class DLTrainer:
         self.testloader = testloader
 
 
+    def voc2007_prepare(self):
+        print("Using dataset " + VOC_ROOT)
+        self.trainset = VOCDetection(root=VOC_ROOT, transform=SSDAugmentation(300, (104,117,123)) )
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, self.batch_size,
+                                                       num_workers=self.nworkers,
+                                                       shuffle=True, collate_fn=detection_collate,
+                                                       pin_memory=True)
+
+
     def data_prepare(self):
         if self.dataset == 'imagenet':
             self.imagenet_prepare()
@@ -472,6 +492,8 @@ class DLTrainer:
             self.an4_prepare()
         elif self.dataset == 'ptb':
             self.ptb_prepare()
+        elif self.dataset == 'voc2007':
+            self.voc2007_prepare()
         else:
             errstr = 'Unsupport dataset: %s' % self.dataset
             logger.error(errstr)
@@ -521,7 +543,7 @@ class DLTrainer:
         except:
             self.data_iterator = iter(self.trainloader)
             d = self.data_iterator.next()
-        
+
         #print(d[0].size())
         #print(d[0].size()[-1], self.batch_size)
         if d[0].size()[0] != self.batch_size:
@@ -535,7 +557,7 @@ class DLTrainer:
     def _adjust_learning_rate_general(self, progress, optimizer):
         for param_group in optimizer.param_groups:
             param_group['lr'] = self.lr
-        return self.lr 
+        return self.lr
 
     def _adjust_learning_rate_vgg16(self, progress, optimizer):
         if progress > 0 and progress % 25 == 0:
@@ -548,7 +570,7 @@ class DLTrainer:
         #if self.dnn == 'vgg16':
         #    return self._adjust_learning_rate_vgg16(progress, optimizer)
         if self.dnn == 'lstman4':
-           return self._adjust_learning_rate_lstman4(self.train_iter//self.num_batches_per_epoch, optimizer)        
+           return self._adjust_learning_rate_lstman4(self.train_iter//self.num_batches_per_epoch, optimizer)
         return self._adjust_learning_rate_general(progress, optimizer)
 
     def print_weight_gradient_ratio(self):
@@ -563,7 +585,7 @@ class DLTrainer:
         for name, param in self.net.named_parameters():
             if param.requires_grad:
                 wn = param.data.norm()
-                gn = param.grad.norm() 
+                gn = param.grad.norm()
                 logger.info('[%s] = %f, %f, %f', name, wn, gn, wn/gn)
 
     def finish(self):
@@ -625,21 +647,28 @@ class DLTrainer:
                 if self.dnn == 'lstm' :
                     inputs = Variable(inputs.transpose(0, 1).contiguous()).cuda()
                     labels = Variable(labels_cpu.transpose(0, 1).contiguous()).cuda()
+                elif self.dnn == 'ssd':
+                    inputs = Variable(inputs.cuda())
+                    labels = [Variable(ann.cuda(), volatile=True) for ann in labels_cpu]
+                    print("Inputs and labels are CUDA tensors")
                 else:
                     inputs, labels = inputs.cuda(non_blocking=True), labels_cpu.cuda(non_blocking=True)
             else:
                 if self.dnn == 'lstm' :
                     inputs = Variable(inputs.transpose(0, 1).contiguous())
                     labels = Variable(labels_cpu.transpose(0, 1).contiguous())
+                elif self.dnn == 'ssd':
+                    inputs = Variable(inputs)
+                    labels = [Variable(ann, volatile=True) for ann in labels_cpu]
                 else:
                     labels = labels_cpu
-                
+
             print(inputs.size())
             # wrap them in Variable
             #inputs, labels = Variable(inputs), Variable(labels)
             #logger.info('[%d] labels: %s', self.train_iter, labels_cpu)
             self.iotime += (time.time() - ss)
-            
+
             if self.dnn == 'lstman4':
                 out, output_sizes = self.net(inputs, input_sizes)
                 out = out.transpose(0, 1)  # TxNxH
@@ -657,6 +686,13 @@ class DLTrainer:
                 torch.nn.utils.clip_grad_norm(self.net.parameters(), 0.25)
                 for p in self.net.parameters():
                     p.data.add_(-self.lr, p.grad.data)
+            elif self.dnn == 'ssd':
+                outputs = self.net(inputs)
+                criterion = layers.modules.MultiBoxLoss(self.num_classes, 0.5, True, 0, True, 3,
+                                         0.5, False, self.is_cuda)
+                loss_l, loss_c = criterion(outputs, labels)
+                loss = loss_l + loss_c
+
             else:
                 # forward + backward + optimize
                 outputs = self.net(inputs)
@@ -664,19 +700,20 @@ class DLTrainer:
                 loss.backward()
             loss_value = loss.item()
             # logger.info statistics
-            self.loss += loss_value 
+            self.loss += loss_value
 
             self.avg_loss_per_epoch += loss_value
 
             # todo zhtang an4 ==================
-            if self.dnn not in ['lstm', 'lstman4']:
+            if self.dnn not in ['lstm', 'lstman4', 'ssd']:
                 acc1, = self.cal_accuracy(outputs, labels, topk=(1,))
                 self.train_acc_top1.append(acc1)
-                
+
+
             self.train_iter += 1
         self.num_of_updates_during_comm += 1
-        self.loss /= num_of_iters 
-        self.timer += time.time() - s 
+        self.loss /= num_of_iters
+        self.timer += time.time() - s
         display = 10
         if self.train_iter % display == 0:
             logger.info('[%3d][%5d/%5d][rank:%d] loss: %.3f, average forward and backward time: %f, iotime: %f ' %
@@ -695,7 +732,7 @@ class DLTrainer:
             if self.is_cuda:
                 torch.cuda.empty_cache()
             #self.print_weight_gradient_ratio()
-            
+
         # todo zhtang====
         if self.dnn == 'lstm':
             return num_of_iters, hidden
@@ -734,14 +771,14 @@ class DLTrainer:
 def train_with_single(dnn, dataset, data_dir, nworkers, lr, batch_size, nsteps_update, max_epochs, num_steps=1, num_iter=None, secs=-1, cuda_enable=True):
     if cuda_enable:
         torch.cuda.set_device(0)
-        trainer = DLTrainer(0, nworkers, dist=False, batch_size=batch_size, 
-            is_weak_scaling=True, ngpus=1, data_dir=data_dir, dataset=dataset, 
+        trainer = DLTrainer(0, nworkers, dist=False, batch_size=batch_size,
+            is_weak_scaling=True, ngpus=1, data_dir=data_dir, dataset=dataset,
             dnn=dnn, lr=lr, nworkers=nworkers, prefix='allreduce', num_steps = num_steps)
     else:
-        trainer = DLTrainer(0, nworkers, dist=False, batch_size=batch_size, 
-            is_weak_scaling=True, ngpus=-1, data_dir=data_dir, dataset=dataset, 
+        trainer = DLTrainer(0, nworkers, dist=False, batch_size=batch_size,
+            is_weak_scaling=True, ngpus=-1, data_dir=data_dir, dataset=dataset,
             dnn=dnn, lr=lr, nworkers=nworkers, prefix='allreduce', num_steps = num_steps)
-        
+
     iters_per_epoch = trainer.get_num_of_training_samples() // (nworkers * batch_size * nsteps_update)
 
     times = []
@@ -760,7 +797,7 @@ def train_with_single(dnn, dataset, data_dir, nworkers, lr, batch_size, nsteps_u
                 trainer.train(1)
         trainer.update_model()
         times.append(time.time()-s)
-        if i % display == 0 and i > 0: 
+        if i % display == 0 and i > 0:
             time_per_iter = np.mean(times)
             logger.info('Time per iteration including communication: %f. Speed: %f images/s', time_per_iter, batch_size * nsteps_update / time_per_iter)
 
@@ -782,7 +819,7 @@ def train_with_single(dnn, dataset, data_dir, nworkers, lr, batch_size, nsteps_u
                 trainer.train(1)
         trainer.update_model()
         times.append(time.time()-s)
-        if i % display == 0 and i > 0: 
+        if i % display == 0 and i > 0:
             time_per_iter = np.mean(times)
             logger.info('Time per iteration including communication: %f. Speed: %f images/s', time_per_iter, batch_size * nsteps_update / time_per_iter)
 
@@ -791,8 +828,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Single trainer")
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--nsteps-update', type=int, default=1)
-    parser.add_argument('--dataset', type=str, default='imagenet', choices=['imagenet', 'cifar10', 'an4', 'ptb'], help='Specify the dataset for training')
-    parser.add_argument('--dnn', type=str, default='resnet50', choices=['resnet50', 'resnet20', 'vgg19', 'vgg16', 'alexnet', 'inception_v3', 'lstman4', 'lstm'], help='Specify the neural network for training')
+    parser.add_argument('--dataset', type=str, default='imagenet', choices=['imagenet', 'cifar10', 'an4', 'ptb', 'voc2007'], help='Specify the dataset for training')
+    parser.add_argument('--dnn', type=str, default='resnet50', choices=['resnet50', 'resnet20', 'vgg19', 'vgg16', 'alexnet', 'inception_v3', 'lstman4', 'lstm', 'ssd'], help='Specify the neural network for training')
     parser.add_argument('--data-dir', type=str, default='./data', help='Specify the data root path')
     parser.add_argument('--lr', type=float, default=0.1, help='Default learning rate')
     parser.add_argument('--max-epochs', type=int, default=10, help='Default maximum epochs to train')
@@ -812,15 +849,16 @@ if __name__ == '__main__':
     logfile = os.path.join(relative_path, settings.hostname+'.log')
     hdlr = logging.FileHandler(logfile)
     hdlr.setFormatter(formatter)
-    logger.addHandler(hdlr) 
+    logger.addHandler(hdlr)
     logger.info('Configurations: %s', args)
 
     if args.power_profile:
         # start power profiling
         pw_logfile = logfile.replace(".log", "-power.log")
-        logger.info("Cool down GPU for 15 secs before executing the task...")
-        os.system("nohup ./scripts/nvml_samples -si=50 -device=%d 1>%s 2>&1 &" % (device_id, pw_logfile))
-        time.sleep(15)
+        #logger.info("Cool down GPU for 15 secs before executing the task...")
+        #os.system("nohup ./scripts/nvml_samples -si=50 -device=%d 1>%s 2>&1 &" % (device_id, pw_logfile))
+        #time.sleep(15)
+        logger.info("WARNING: developing mode, no cool down for GPU")
 
     num_iter = None
     cuda_enable = True

@@ -24,3 +24,7 @@ from .imagenet_resnet import resnet18, resnet34, resnet50, resnet101, resnet152
 from .vgg import VGG, vgg16
 from .alexnet import AlexNet
 from .lstman4 import create_net as LSTMAN4
+from .ssd import SSD, build_ssd
+
+from .layers import *
+from .data import *

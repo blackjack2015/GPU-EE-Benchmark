@@ -1,12 +1,11 @@
 #!/bin/bash
-dnn="${dnn:-resnet20}"
+dnn="${dnn:-ssd}"
 bs="${bs:-32}"
 epoch="${epoch:-1}"
 iter="${iter:-800}"
 secs="${secs:--1}"
 cuda="${cuda:-1}"
 source exp_configs/$dnn.conf
-nstepsupdate=1
 python -W ignore  \
     dl_trainer.py \
     --dnn $dnn --dataset $dataset --max-epochs $max_epochs --batch-size $batch_size --data-dir $data_dir --lr $lr --nsteps-update $nstepsupdate --num-iter $iter --secs $secs --cuda $cuda --power-profile 
