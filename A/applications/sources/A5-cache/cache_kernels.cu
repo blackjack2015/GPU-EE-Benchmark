@@ -253,7 +253,7 @@ double cachebenchGPU(double *c, long size, bool excel){
         double peak_bw = 0;
         for(int i = -3; i < cIterations; i++){
             gettimeofday(&start, NULL);
-	    peak_bw += max( peak_bw, runbench<datatype, readonly,  1,    0>(TOTAL_BLOCKS, cd, size, excel) );
+	    peak_bw += runbench<datatype, readonly,  1,    0>(TOTAL_BLOCKS, cd, size, excel);
             gettimeofday(&end, NULL);
             total_time += end.tv_sec - start.tv_sec + (end.tv_usec - start.tv_usec)/1000000.0;
 

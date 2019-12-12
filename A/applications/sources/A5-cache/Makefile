@@ -1,5 +1,5 @@
 
-CUDA_INSTALL_PATH=/usr/local/cuda-9.0
+CUDA_INSTALL_PATH=/usr/local/cuda-10.0
 CC = g++
 OPTFLAG = -O2
 NVCC = ${CUDA_INSTALL_PATH}/bin/nvcc
