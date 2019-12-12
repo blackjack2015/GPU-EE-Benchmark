@@ -501,7 +501,7 @@ void runSingleTest(const char *ref_file, const char *exec_path)
     copyInvViewMatrix(invViewMatrix, sizeof(float4)*3);
 
     // Start timer 0 and process n loops on the GPU
-    int nIter = 1000;
+    int nIter = 10000;
 
     for (int i = -1; i < nIter; i++)
     {
