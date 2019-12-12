@@ -473,8 +473,9 @@ class DLTrainer:
 
 
     def voc2007_prepare(self):
-        print("Using dataset " + VOC_ROOT)
-        self.trainset = VOCDetection(root=VOC_ROOT, transform=SSDAugmentation(300, (104,117,123)) )
+        #print("Using dataset " + VOC_ROOT)
+        print("Using dataset " + self.data_dir)
+        self.trainset = VOCDetection(root=self.data_dir, transform=SSDAugmentation(300, (104,117,123)) )
         self.trainloader = torch.utils.data.DataLoader(self.trainset, self.batch_size,
                                                        num_workers=self.nworkers,
                                                        shuffle=True, collate_fn=detection_collate,
@@ -650,7 +651,7 @@ class DLTrainer:
                 elif self.dnn == 'ssd':
                     inputs = Variable(inputs.cuda())
                     labels = [Variable(ann.cuda(), volatile=True) for ann in labels_cpu]
-                    print("Inputs and labels are CUDA tensors")
+                    #print("Inputs and labels are CUDA tensors")
                 else:
                     inputs, labels = inputs.cuda(non_blocking=True), labels_cpu.cuda(non_blocking=True)
             else:
@@ -663,7 +664,7 @@ class DLTrainer:
                 else:
                     labels = labels_cpu
 
-            print(inputs.size())
+            #print(inputs.size())
             # wrap them in Variable
             #inputs, labels = Variable(inputs), Variable(labels)
             #logger.info('[%d] labels: %s', self.train_iter, labels_cpu)
@@ -855,9 +856,10 @@ if __name__ == '__main__':
     if args.power_profile:
         # start power profiling
         pw_logfile = logfile.replace(".log", "-power.log")
-        #logger.info("Cool down GPU for 15 secs before executing the task...")
-        #os.system("nohup ./scripts/nvml_samples -si=50 -device=%d 1>%s 2>&1 &" % (device_id, pw_logfile))
-        #time.sleep(15)
+        logger.info("Cool down GPU for 15 secs before executing the task...")
+        os.system("nohup ./scripts/nvml_samples -si=50 -device=%d 1>%s 2>&1 &" % (device_id, pw_logfile))
+        time.sleep(15)
+    else:
         logger.info("WARNING: developing mode, no cool down for GPU")
 
     num_iter = None
