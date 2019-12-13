@@ -631,7 +631,8 @@ class DLTrainer:
                 self.avg_loss_per_epoch = 0.0
                 self.train_epoch += 1
                 # todo zhtang an4 ===========
-                if self.train_sampler and (self.nworkers > 1):
+                #if self.train_sampler and (self.nworkers > 1):
+                if (self.nworkers > 1) and (self.train_sampler):
                     # print(" In training :  self.train_sampler.set_epoch(self.train_epoch)  ")
                     self.train_sampler.set_epoch(self.train_epoch)
 
