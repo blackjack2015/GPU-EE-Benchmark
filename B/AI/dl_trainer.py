@@ -846,6 +846,7 @@ if __name__ == '__main__':
     device_id = 0
     if "CUDA_VISIBLE_DEVICES" in os.environ:
         device_id = int(os.environ['CUDA_VISIBLE_DEVICES'])
+    logger.info("Using CUDA Device ID: %d." % device_id)
     relative_path = './logs/GPU_ID_%d/%s-n%d-bs%d-lr%.4f-ns%d' % (device_id, args.dnn, 1, batch_size, args.lr, args.nsteps_update)
     utils.create_path(relative_path)
     logfile = os.path.join(relative_path, settings.hostname+'.log')
