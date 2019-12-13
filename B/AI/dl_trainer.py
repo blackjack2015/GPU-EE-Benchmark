@@ -37,7 +37,7 @@ import models.lstm as lstmpy
 from torch.autograd import Variable
 import json
 
-os.environ["CUDA_VISIBLE_DEVICES"]='1'
+#os.environ["CUDA_VISIBLE_DEVICES"]='1'
 
 torch.manual_seed(0)
 if "run_threads" in os.environ:
@@ -852,6 +852,7 @@ if __name__ == '__main__':
     hdlr.setFormatter(formatter)
     logger.addHandler(hdlr)
     logger.info('Configurations: %s', args)
+    logger.info("CUDA_VISIBLE_DEVICES: %s." % os.environ['CUDA_VISIBLE_DEVICES'])
 
     if args.power_profile:
         # start power profiling
