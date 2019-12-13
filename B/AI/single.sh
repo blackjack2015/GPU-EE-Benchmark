@@ -5,8 +5,9 @@ epoch="${epoch:-1}"
 iter="${iter:-800}"
 secs="${secs:--1}"
 cuda="${cuda:-1}"
+dev_id="${dev_id:-3}"
 source exp_configs/$dnn.conf
-python -W ignore  \
+CUDA_VISIBLE_DEVICES=$dev_id python -W ignore  \
     dl_trainer.py \
     --dnn $dnn --dataset $dataset --max-epochs $max_epochs --batch-size $batch_size --data-dir $data_dir --lr $lr --nsteps-update $nstepsupdate --num-iter $iter --secs $secs --cuda $cuda --power-profile 
 # dnn=lstman4
